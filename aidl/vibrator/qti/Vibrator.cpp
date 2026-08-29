@@ -290,7 +290,7 @@ int InputFFDevice::playPrimitive(int effectId, float scale, long* playLengthMs) 
 
     /* Spread the scale over the feelable range the same way setAmplitude()
      * does, so that a small scale stays perceptible. */
-    mCurrMagnitude = LIGHT_MAGNITUDE + (int16_t)(scale * (STRONG_MAGNITUDE - LIGHT_MAGNITUDE));
+    mCurrMagnitude = MEDIUM_MAGNITUDE + (int16_t)(scale * (STRONG_MAGNITUDE - MEDIUM_MAGNITUDE));
 
     return playLocked(effectId, INVALID_VALUE, playLengthMs);
 }

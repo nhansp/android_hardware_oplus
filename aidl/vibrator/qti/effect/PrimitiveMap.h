@@ -38,7 +38,7 @@ static constexpr std::array<PrimitiveEntry, 9> kPrimitiveMap = {{
         {CompositePrimitive::SLOW_RISE, 47},
         {CompositePrimitive::QUICK_FALL, 11},
         {CompositePrimitive::LIGHT_TICK, 7},
-        {CompositePrimitive::LOW_TICK, 14},
+        {CompositePrimitive::LOW_TICK, 303},
 }};
 
 static inline int effectIdForPrimitive(CompositePrimitive primitive) {
