@@ -576,7 +576,11 @@ ndk::ScopedAStatus Vibrator::perform(Effect effect, EffectStrength es,
             es != EffectStrength::STRONG)
             return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
 
-        ret = ff.playEffect((static_cast<int>(effect)), es, &playLengthMs);
+        int effectId = effectIdForEffect(effect);
+        if (effectId == kNoEffect)
+            return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+
+        ret = ff.playEffect(effectId, es, &playLengthMs);
         if (ret != 0) return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_SERVICE_SPECIFIC));
     }
 
