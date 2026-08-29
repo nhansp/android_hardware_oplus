@@ -31,6 +31,9 @@
 
 #include <aidl/android/hardware/vibrator/BnVibrator.h>
 
+#include <condition_variable>
+#include <mutex>
+
 namespace aidl {
 namespace android {
 namespace hardware {
@@ -40,6 +43,7 @@ class InputFFDevice {
   public:
     InputFFDevice();
     int playEffect(int effectId, EffectStrength es, long* playLengthMs);
+    int playPrimitive(int effectId, float scale, long* playLengthMs);
     int on(int32_t timeoutMs);
     int off();
     int setAmplitude(uint8_t amplitude);
@@ -50,6 +54,8 @@ class InputFFDevice {
 
   private:
     int play(int effectId, uint32_t timeoutMs, long* playLengthMs);
+    int playLocked(int effectId, uint32_t timeoutMs, long* playLengthMs);
+    std::mutex mLock;
     int mVibraFd;
     int16_t mCurrAppId;
     int16_t mCurrMagnitude;
@@ -91,6 +97,27 @@ class Vibrator : public BnVibrator {
     ndk::ScopedAStatus getSupportedAlwaysOnEffects(std::vector<Effect>* _aidl_return) override;
     ndk::ScopedAStatus alwaysOnEnable(int32_t id, Effect effect, EffectStrength strength) override;
     ndk::ScopedAStatus alwaysOnDisable(int32_t id) override;
+
+    /* Added in version 2 of the interface. The hardware drives fixed
+     * waveforms, so none of the PWLE or frequency control is available. */
+    ndk::ScopedAStatus getResonantFrequency(float* _aidl_return) override;
+    ndk::ScopedAStatus getQFactor(float* _aidl_return) override;
+    ndk::ScopedAStatus getFrequencyResolution(float* _aidl_return) override;
+    ndk::ScopedAStatus getFrequencyMinimum(float* _aidl_return) override;
+    ndk::ScopedAStatus getBandwidthAmplitudeMap(std::vector<float>* _aidl_return) override;
+    ndk::ScopedAStatus getPwlePrimitiveDurationMax(int32_t* _aidl_return) override;
+    ndk::ScopedAStatus getPwleCompositionSizeMax(int32_t* _aidl_return) override;
+    ndk::ScopedAStatus getSupportedBraking(std::vector<Braking>* _aidl_return) override;
+    ndk::ScopedAStatus composePwle(const std::vector<PrimitivePwle>& composite,
+                                   const std::shared_ptr<IVibratorCallback>& callback) override;
+
+  private:
+    /* Compositions are sequenced in userspace, so off() has to be able to
+     * interrupt a composition that is still stepping. */
+    bool composeSleep(uint32_t generation, int32_t ms);
+    std::mutex mComposeLock;
+    std::condition_variable mComposeCv;
+    uint32_t mComposeGeneration = 0;
 };
 
 }  // namespace vibrator
