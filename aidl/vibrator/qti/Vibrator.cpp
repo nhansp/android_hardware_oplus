@@ -30,6 +30,7 @@
 
 #define LOG_TAG "vendor.qti.vibrator"
 
+#include <cmath>
 #include <cutils/properties.h>
 #include <dirent.h>
 #include <inttypes.h>
@@ -53,12 +54,12 @@ namespace hardware {
 namespace vibrator {
 
 #define STRONG_MAGNITUDE 0x7fff
-#define MEDIUM_MAGNITUDE 0x5fff
-#define LIGHT_MAGNITUDE 0x3fff
-/* Floor for the paths that take a continuous level. FF_GAIN scales the
- * whole drive range, so the floor is the only thing bounding it, and the
- * framework asks for scales as low as 0.09. */
-#define FLOOR_MAGNITUDE 0x0ccc
+#define MEDIUM_MAGNITUDE 0x7333
+#define LIGHT_MAGNITUDE 0x6666
+/* Floor for the paths that take a continuous level. FF_GAIN scales the whole
+ * drive range, so the floor is the only thing bounding it. 0x0ccc left the
+ * common scales below what the hand can feel. */
+#define FLOOR_MAGNITUDE 0x2666
 #define INVALID_VALUE -1
 #define CUSTOM_DATA_LEN 3
 #define NAME_BUF_SIZE 32
@@ -292,7 +293,10 @@ int InputFFDevice::play(int effectId, uint32_t timeoutMs, long* playLengthMs) {
 int InputFFDevice::playPrimitive(int effectId, float scale, long* playLengthMs) {
     std::lock_guard<std::mutex> lock(mLock);
 
-    mCurrMagnitude = FLOOR_MAGNITUDE + (int16_t)(scale * (STRONG_MAGNITUDE - FLOOR_MAGNITUDE));
+    /* sqrt, not linear: the framework spends most of its range under 0.3 and
+     * the ceiling is fixed, so a straight ramp leaves the common scales weak. */
+    mCurrMagnitude =
+            FLOOR_MAGNITUDE + (int16_t)(sqrtf(scale) * (STRONG_MAGNITUDE - FLOOR_MAGNITUDE));
 
     return playLocked(effectId, INVALID_VALUE, playLengthMs);
 }
