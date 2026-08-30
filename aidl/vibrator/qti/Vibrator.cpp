@@ -288,9 +288,10 @@ int InputFFDevice::play(int effectId, uint32_t timeoutMs, long* playLengthMs) {
 int InputFFDevice::playPrimitive(int effectId, float scale, long* playLengthMs) {
     std::lock_guard<std::mutex> lock(mLock);
 
-    /* Spread the scale over the feelable range the same way setAmplitude()
-     * does, so that a small scale stays perceptible. */
-    mCurrMagnitude = MEDIUM_MAGNITUDE + (int16_t)(scale * (STRONG_MAGNITUDE - MEDIUM_MAGNITUDE));
+    /* Spread the scale over the same range setAmplitude() uses. Starting at
+     * MEDIUM leaves only a 1.33x span, which reads as one flat level across a
+     * ramp; LIGHT..STRONG keeps a perceptible floor and twice the range. */
+    mCurrMagnitude = LIGHT_MAGNITUDE + (int16_t)(scale * (STRONG_MAGNITUDE - LIGHT_MAGNITUDE));
 
     return playLocked(effectId, INVALID_VALUE, playLengthMs);
 }
