@@ -55,6 +55,10 @@ namespace vibrator {
 #define STRONG_MAGNITUDE 0x7fff
 #define MEDIUM_MAGNITUDE 0x5fff
 #define LIGHT_MAGNITUDE 0x3fff
+/* Floor for the paths that take a continuous level. FF_GAIN scales the
+ * whole drive range, so the floor is the only thing bounding it, and the
+ * framework asks for scales as low as 0.09. */
+#define FLOOR_MAGNITUDE 0x0ccc
 #define INVALID_VALUE -1
 #define CUSTOM_DATA_LEN 3
 #define NAME_BUF_SIZE 32
@@ -288,10 +292,7 @@ int InputFFDevice::play(int effectId, uint32_t timeoutMs, long* playLengthMs) {
 int InputFFDevice::playPrimitive(int effectId, float scale, long* playLengthMs) {
     std::lock_guard<std::mutex> lock(mLock);
 
-    /* Spread the scale over the same range setAmplitude() uses. Starting at
-     * MEDIUM leaves only a 1.33x span, which reads as one flat level across a
-     * ramp; LIGHT..STRONG keeps a perceptible floor and twice the range. */
-    mCurrMagnitude = LIGHT_MAGNITUDE + (int16_t)(scale * (STRONG_MAGNITUDE - LIGHT_MAGNITUDE));
+    mCurrMagnitude = FLOOR_MAGNITUDE + (int16_t)(scale * (STRONG_MAGNITUDE - FLOOR_MAGNITUDE));
 
     return playLocked(effectId, INVALID_VALUE, playLengthMs);
 }
@@ -312,8 +313,8 @@ int InputFFDevice::setAmplitude(uint8_t amplitude) {
     /* For QMAA compliance, return OK even if vibrator device doesn't exist */
     if (mVibraFd == INVALID_VALUE) return 0;
 
-    tmp = amplitude * (STRONG_MAGNITUDE - LIGHT_MAGNITUDE) / 255;
-    tmp += LIGHT_MAGNITUDE;
+    tmp = amplitude * (STRONG_MAGNITUDE - FLOOR_MAGNITUDE) / 255;
+    tmp += FLOOR_MAGNITUDE;
     ie.type = EV_FF;
     ie.code = FF_GAIN;
     ie.value = tmp;
