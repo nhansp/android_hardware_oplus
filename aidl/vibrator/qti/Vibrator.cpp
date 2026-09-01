@@ -55,6 +55,8 @@ namespace vibrator {
 #define STRONG_MAGNITUDE 0x7fff
 #define MEDIUM_MAGNITUDE 0x5fff
 #define LIGHT_MAGNITUDE 0x3fff
+/* ~30% of fifo_vmax (8241 mV); the LRA's practical starting point. */
+#define PRIMITIVE_FLOOR_MAGNITUDE 0x2666
 #define INVALID_VALUE -1
 #define CUSTOM_DATA_LEN 3
 #define NAME_BUF_SIZE 32
@@ -288,9 +290,11 @@ int InputFFDevice::play(int effectId, uint32_t timeoutMs, long* playLengthMs) {
 int InputFFDevice::playPrimitive(int effectId, float scale, long* playLengthMs) {
     std::lock_guard<std::mutex> lock(mLock);
 
-    /* Spread the scale over the feelable range the same way setAmplitude()
-     * does, so that a small scale stays perceptible. */
-    mCurrMagnitude = LIGHT_MAGNITUDE + (int16_t)(scale * (STRONG_MAGNITUDE - LIGHT_MAGNITUDE));
+    /* Below roughly 30% of fifo_vmax a 10-20ms transient does not get the LRA
+     * moving at all, so floor it there rather than scaling linearly to zero. */
+    int32_t magnitude = (int32_t)(scale * STRONG_MAGNITUDE);
+    if (magnitude < PRIMITIVE_FLOOR_MAGNITUDE) magnitude = PRIMITIVE_FLOOR_MAGNITUDE;
+    mCurrMagnitude = (int16_t)magnitude;
 
     return playLocked(effectId, INVALID_VALUE, playLengthMs);
 }
@@ -330,13 +334,12 @@ int InputFFDevice::setAmplitude(uint8_t amplitude) {
 int InputFFDevice::playEffect(int effectId, EffectStrength es, long* playLengthMs) {
     std::lock_guard<std::mutex> lock(mLock);
 
+    /* Strength is carried by which waveform we picked, not by the magnitude.
+     * Driving an already-light waveform at a low magnitude just fails to start
+     * the LRA, which reads as nothing happening at all. */
     switch (es) {
         case EffectStrength::LIGHT:
-            mCurrMagnitude = LIGHT_MAGNITUDE;
-            break;
         case EffectStrength::MEDIUM:
-            mCurrMagnitude = MEDIUM_MAGNITUDE;
-            break;
         case EffectStrength::STRONG:
             mCurrMagnitude = STRONG_MAGNITUDE;
             break;
@@ -576,7 +579,7 @@ ndk::ScopedAStatus Vibrator::perform(Effect effect, EffectStrength es,
             es != EffectStrength::STRONG)
             return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
 
-        ret = ff.playEffect((static_cast<int>(effect)), es, &playLengthMs);
+        ret = ff.playEffect(effectIdForEffect(effect, es), es, &playLengthMs);
         if (ret != 0) return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_SERVICE_SPECIFIC));
     }
 
@@ -666,10 +669,13 @@ ndk::ScopedAStatus Vibrator::getCompositionSizeMax(int32_t* maxSize) {
 ndk::ScopedAStatus Vibrator::getSupportedPrimitives(std::vector<CompositePrimitive>* supported) {
     supported->clear();
 
+    /* Claiming a primitive we have no waveform for is worse than omitting it:
+     * the framework would compose with it instead of substituting something
+     * that actually plays. NOOP is the one entry that legitimately has none. */
     for (const auto& entry : kPrimitiveMap) {
-        if (entry.effectId == kNoEffect)
+        if (entry.primitive == CompositePrimitive::NOOP)
             supported->push_back(entry.primitive);
-        else if (get_effect_stream(entry.effectId) != NULL)
+        else if (entry.effectId != kNoEffect && get_effect_stream(entry.effectId) != NULL)
             supported->push_back(entry.primitive);
     }
 
