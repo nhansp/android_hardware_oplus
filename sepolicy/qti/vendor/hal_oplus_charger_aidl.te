@@ -28,3 +28,9 @@ rw_dir_file(hal_oplus_charger_aidl, vendor_sysfs_usb_supply)
 rw_dir_file(hal_oplus_charger_aidl, vendor_proc_charger)
 rw_dir_file(hal_oplus_charger_aidl, vendor_proc_oplus_version)
 rw_dir_file(hal_oplus_charger_aidl, vendor_proc_wireless)
+
+# The HAL polls sys.boot_completed and falls back to its sysfs boot_completed
+# node, so these are noise -- but 3439 of ~3600 AVCs on a boot are these two.
+get_prop(hal_oplus_charger_aidl, boot_status_prop)
+# init.te neverallows writing this, so silence rather than allow.
+dontaudit hal_oplus_charger_aidl system_data_root_file:dir write;
