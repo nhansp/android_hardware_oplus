@@ -59,6 +59,19 @@ namespace vibrator {
 #define CUSTOM_DATA_LEN 3
 #define NAME_BUF_SIZE 32
 
+/*
+ * OPlus's own effect stream has no entry for effect id 0: vibrator_effect.json
+ * lists ids 1..435 under def_style and nothing for 0, and the one soft_style
+ * entry that does name id 0 points at a file the stock ROM never ships. Passing
+ * Effect::CLICK through as its enum value therefore misses the stream and falls
+ * back to the driver's predefined effect 0, which is a flat placeholder pattern.
+ * Effect 111 is the middle rung of OPlus's own click ladder (110/111/112, the
+ * light rung being a copy of effect 1 and the strong one a copy of effect 6) and
+ * is not claimed by any other enumerator, so play it for CLICK. Every other
+ * effect from DOUBLE_CLICK to HEAVY_CLICK resolves in the stream as-is.
+ */
+#define CLICK_EFFECT_ID 111
+
 #define MSM_CPU_LAHAINA 415
 #define APQ_CPU_LAHAINA 439
 #define MSM_CPU_SHIMA 450
@@ -576,7 +589,9 @@ ndk::ScopedAStatus Vibrator::perform(Effect effect, EffectStrength es,
             es != EffectStrength::STRONG)
             return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
 
-        ret = ff.playEffect((static_cast<int>(effect)), es, &playLengthMs);
+        int effectId = effect == Effect::CLICK ? CLICK_EFFECT_ID : static_cast<int>(effect);
+
+        ret = ff.playEffect(effectId, es, &playLengthMs);
         if (ret != 0) return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_SERVICE_SPECIFIC));
     }
 
